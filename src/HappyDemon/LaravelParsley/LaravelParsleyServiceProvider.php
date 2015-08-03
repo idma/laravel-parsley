@@ -1,8 +1,8 @@
 <?php
 
-namespace Idma\LaravelParsley;
+namespace HappyDemon\LaravelParsley;
 
-use Illuminate\Html\HtmlServiceProvider;
+use Collective\Html\HtmlServiceProvider;
 
 class LaravelParsleyServiceProvider extends HtmlServiceProvider
 {
@@ -11,8 +11,6 @@ class LaravelParsleyServiceProvider extends HtmlServiceProvider
 	 */
 	public function register()
 	{
-		$this->package('idma/parsley-laravel');
-
 		parent::register();
 	}
 

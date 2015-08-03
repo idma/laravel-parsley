@@ -1,10 +1,12 @@
 <?php
 
-namespace Idma\LaravelParsley;
+namespace HappyDemon\LaravelParsley;
 
 use Illuminate\Translation\Translator;
 
 class ParsleyConverter {
+    use \Illuminate\Console\AppNamespaceDetectorTrait;
+
     protected $rules            = [];
     protected $customAttributes = [];
 
@@ -13,9 +15,13 @@ class ParsleyConverter {
      */
     protected $translator       = null;
 
-    public function __construct()
+    public function __construct($formRequest=null)
     {
-        $formRequest = \View::shared('_ilp_request');
+        if($formRequest != null && !is_object($formRequest))
+        {
+            $class = $this->getAppNamespace() . 'Http\Requests\\'.$formRequest;
+            $formRequest = new $class;
+        }
 
         if ($formRequest && method_exists($formRequest, 'rules')) {
             $this->rules = $formRequest->rules();
@@ -31,7 +37,6 @@ class ParsleyConverter {
     public function getFieldRules($field)
     {
         $rules = [];
-
         if (isset($this->rules[$field])) {
             $rawRules = explode('|', $this->rules[$field]);
 
@@ -46,10 +51,12 @@ class ParsleyConverter {
         $attrs   = [];
         $message = null;
 
+        $date_format = null;
+
         foreach ($rules as $rule) {
             list($rule, $params) = explode(':', $rule . ':');
 
-            $params = explode(',', str_replace(' ', '', $params));
+            $params = explode(',', $params);
 
             $parsleyRule = $rule;
 
@@ -57,8 +64,13 @@ class ParsleyConverter {
             $message = $this->getMessage($attribute, $rule, $rules);
 
             switch ($rule) {
+                case 'accepted':
                 case 'required':
+                    break;
+
                 case 'email':
+                    $parsleyRule = 'type';
+                    $params = 'email';
                     break;
 
                 case 'min':
@@ -87,6 +99,11 @@ class ParsleyConverter {
                     $parsleyRule = 'integer';
                     break;
 
+                case 'url':
+                    $parsleyRule = 'type';
+                    $params = 'url';
+                    break;
+
                 case 'alpha_num':
                     $parsleyRule = 'alphanum';
                     $params = '/^\d[a-zа-яё\-\_]+$/i';
@@ -111,8 +128,48 @@ class ParsleyConverter {
                     $params = "#{$attribute}_confirmation";
                     break;
 
+                case 'different':
+                    $parsleyRule = 'different';
+                    $message = str_replace(':other', $params[0], $message);
+                    $params = '#'.$params[0];
+                    break;
+
+                case 'date_format':
+                    $parsleyRule = 'dateformat';
+                    $replace = [
+                        // Day
+                        'd' => 'DD', 'D' => 'ddd', 'j' => 'D', 'l' => 'DDDD',
+                        'N' => 'E', 'S' => '', 'w' => 'W', 'z' => 'DDD',
+                        // Week
+                        'W' => 'w',
+                        // Month
+                        'F' => 'MMMM', 'm' => 'MM', 'M' => 'MMM', 'n' => 'M', 't' => '',
+                        // Year
+                        'L' => '', 'o' => 'YYYY', 'Y' => 'YYYY', 'y' => 'YY',
+                        // Time
+                        'a' => 'a', 'A' => 'A', 'B' => '', 'g' => 'h', 'G' => 'H',
+                        'h' => 'hh', 'H' => 'HH', 'i' => 'i', 's' => 's', 'u' => ''
+                    ];
+                    $params = str_replace(array_keys($replace), array_values($replace), $params[0]);
+                    $date_format = $params;
+                    $message = str_replace(':format', $params, $message);
+                break;
+                case 'before':
+                case 'after':
+                    $params = $params[0];
+                        if($date_format !== null)
+                        {
+                            $params .= '|-|'.$date_format;
+                        }
+                    break;
+                case 'in':
+                case 'not_in':
+                    $parsleyRule = camel_case($rule).'List';
+                    $params = implode(',', $params);
+                    break;
                 default:
                     $message = null;
+                    break;
             }
 
             if ($message) {
@@ -126,7 +183,6 @@ class ParsleyConverter {
 
             $message = null;
         }
-
         return $attrs;
     }
 
